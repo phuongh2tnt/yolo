@@ -201,6 +201,8 @@ class AutoBackend(nn.Module):
                 cuda = False
             LOGGER.info(f"Preferring ONNX Runtime {providers[0]}")
             if onnx:
+                import onnxslim
+                w = onnxslim.slim(w, dtype="fp32").SerializeToString()
                 session = onnxruntime.InferenceSession(w, providers=providers)
             else:
                 check_requirements(
