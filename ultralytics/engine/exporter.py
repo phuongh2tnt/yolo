@@ -488,7 +488,7 @@ class Exporter:
                 model_onnx = onnxslim.slim(model_onnx, dtype="fp16" if self.args.half else None)
 
             except Exception as e:
-                LOGGER.warning(f"{prefix} simplifier failure: {e}")
+                LOGGER.warning(f"{prefix} simplify failure: {e}")
 
         # Metadata
         for k, v in self.metadata.items():
