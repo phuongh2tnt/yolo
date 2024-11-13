@@ -203,6 +203,7 @@ class AutoBackend(nn.Module):
             if onnx:
                 check_requirements("onnxslim")
                 import onnxslim
+
                 w = onnxslim.slim(w, dtype="fp32").SerializeToString()
                 session = onnxruntime.InferenceSession(w, providers=providers)
             else:
