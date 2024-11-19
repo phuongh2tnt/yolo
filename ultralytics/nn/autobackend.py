@@ -204,6 +204,7 @@ class AutoBackend(nn.Module):
                 check_requirements("onnxslim")
                 import onnxslim
                 from onnxslim.utils import summarize_model
+
                 summary = summarize_model(w)
                 # get first input dtype
                 input_dtype = summary["op_input_info"][list(summary["op_input_info"].keys())[0]][0]
