@@ -203,8 +203,14 @@ class AutoBackend(nn.Module):
             if onnx:
                 check_requirements("onnxslim")
                 import onnxslim
-
-                w = onnxslim.slim(w, dtype="fp32").SerializeToString()
+                from onnxslim.utils import summarize_model
+                summary = summarize_model(w)
+                # get first input dtype
+                input_dtype = summary["op_input_info"][list(summary["op_input_info"].keys())[0]][0]
+                if fp16 and input_dtype != np.float16:
+                    w = onnxslim.slim(w, dtype="fp16").SerializeToString()
+                elif not fp16 and input_dtype == np.float16:
+                    w = onnxslim.slim(w, dtype="fp32").SerializeToString()
                 session = onnxruntime.InferenceSession(w, providers=providers)
             else:
                 check_requirements(
