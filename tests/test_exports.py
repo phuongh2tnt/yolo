@@ -71,7 +71,8 @@ def test_export_openvino_matrix(task, dynamic, int8, half, batch):
 
 @pytest.mark.slow
 @pytest.mark.parametrize(
-    "task, dynamic, int8, half, batch, simplify", product(TASKS, [True, False], [False], [True, False], [1, 2], [True, False])
+    "task, dynamic, int8, half, batch, simplify",
+    product(TASKS, [True, False], [False], [True, False], [1, 2], [True, False]),
 )
 def test_export_onnx_matrix(task, dynamic, int8, half, batch, simplify):
     """Test YOLO exports to ONNX format with various configurations and parameters."""
