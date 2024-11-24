@@ -206,9 +206,9 @@ class AutoBackend(nn.Module):
                 from onnxslim.utils import summarize_model
 
                 summary = summarize_model(w)
-                # get first input dtype
-                input_dtype = summary["op_input_info"][list(summary["op_input_info"].keys())[0]][0]
+                input_dtype = summary.input_info[0].dtype
                 if fp16 and input_dtype != np.float16:
+                    check_requirements("onnxconverter-common")
                     w = onnxslim.slim(w, dtype="fp16").SerializeToString()
                 elif not fp16 and input_dtype == np.float16:
                     w = onnxslim.slim(w, dtype="fp32").SerializeToString()
