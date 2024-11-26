@@ -234,10 +234,6 @@ class Exporter:
         if self.args.half and self.args.int8:
             LOGGER.warning("WARNING ⚠️ half=True and int8=True are mutually exclusive, setting half=False.")
             self.args.half = False
-        if self.args.half and onnx and self.device.type == "cpu":
-            LOGGER.warning("WARNING ⚠️ half=True only compatible with GPU export, i.e. use device=0")
-            self.args.half = False
-            assert not self.args.dynamic, "half=True not compatible with dynamic=True, i.e. use only one."
         self.imgsz = check_imgsz(self.args.imgsz, stride=model.stride, min_dim=2)  # check image size
         if self.args.int8 and engine:
             self.args.dynamic = True  # enforce dynamic to export TensorRT INT8
@@ -448,6 +444,8 @@ class Exporter:
         requirements = ["onnx>=1.12.0"]
         if self.args.simplify:
             requirements += ["onnxslim", "onnxruntime" + ("-gpu" if torch.cuda.is_available() else "")]
+        if self.args.half:
+            requirements += ["onnxconverter-common"]
         check_requirements(requirements)
         import onnx  # noqa
 
@@ -479,17 +477,16 @@ class Exporter:
 
         # Checks
         model_onnx = onnx.load(f)  # load onnx model
-
         # Simplify
         if self.args.simplify:
             try:
                 import onnxslim
 
                 LOGGER.info(f"{prefix} slimming with onnxslim {onnxslim.__version__}...")
-                model_onnx = onnxslim.slim(model_onnx)
+                model_onnx = onnxslim.slim(model_onnx, dtype="fp16" if self.args.half else None)
 
             except Exception as e:
-                LOGGER.warning(f"{prefix} simplifier failure: {e}")
+                LOGGER.warning(f"{prefix} simplify failure: {e}")
 
         # Metadata
         for k, v in self.metadata.items():

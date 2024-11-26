@@ -201,6 +201,17 @@ class AutoBackend(nn.Module):
                 cuda = False
             LOGGER.info(f"Preferring ONNX Runtime {providers[0]}")
             if onnx:
+                check_requirements("onnxslim")
+                import onnxslim
+                from onnxslim.utils import summarize_model
+
+                summary = summarize_model(w)
+                input_dtype = summary.input_info[0].dtype
+                if fp16 and input_dtype != np.float16:
+                    check_requirements("onnxconverter-common")
+                    w = onnxslim.slim(w, dtype="fp16").SerializeToString()
+                elif not fp16 and input_dtype == np.float16:
+                    w = onnxslim.slim(w, dtype="fp32").SerializeToString()
                 session = onnxruntime.InferenceSession(w, providers=providers)
             else:
                 check_requirements(
