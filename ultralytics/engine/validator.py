@@ -102,7 +102,7 @@ class BaseValidator:
 
         self.plots = {}
         self.callbacks = _callbacks or callbacks.get_default_callbacks()
-        
+
         self.preds = None
 
     @smart_inference_mode()
@@ -159,9 +159,9 @@ class BaseValidator:
 
             model.eval()
             model.warmup(imgsz=(1 if pt else self.args.batch, 3, imgsz, imgsz))  # warmup
-        
+
         self.model = model
-        
+
         self.run_callbacks("on_val_start")
         dt = (
             Profile(device=self.device),
