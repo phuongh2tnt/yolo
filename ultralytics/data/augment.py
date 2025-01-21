@@ -2279,7 +2279,7 @@ class Albumentations:
         return x_center, y_center, width, height
 
     @staticmethod
-    def get_points(n: int, k: int) -> list[int]:
+    def get_points(n: int, k: int) -> list:
         """
         Get the number of points for each polygon.
 
