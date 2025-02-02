@@ -11,6 +11,7 @@ from torch.nn.init import constant_, xavier_uniform_
 
 from .conv import Conv
 from .utils import _get_clones, inverse_sigmoid, multi_scale_deformable_attn_pytorch
+from timm.models.layers import DropPath #lop moi
 
 __all__ = (
     "TransformerEncoderLayer",
@@ -24,7 +25,55 @@ __all__ = (
     "MSDeformAttn",
     "MLP",
 )
+class LayerNorm2d(nn.Module):
+    """
+    2D Layer Normalization module inspired by Detectron2 and ConvNeXt implementations.
+    """
 
+    def __init__(self, num_channels, eps=1e-6):
+        """Initialize LayerNorm2d with the given parameters."""
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(num_channels))
+        self.bias = nn.Parameter(torch.zeros(num_channels))
+        self.eps = eps
+
+    def forward(self, x):
+        """Perform forward pass for 2D layer normalization."""
+        u = x.mean(1, keepdim=True)
+        s = (x - u).pow(2).mean(1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.eps)
+        return self.weight[:, None, None] * x + self.bias[:, None, None]
+
+
+class GlobalContextAttention(nn.Module):
+    """
+    Global Context Attention module inspired by GCViT.
+    """
+
+    def __init__(self, embed_dim, num_heads, dropout=0.0):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.head_dim = embed_dim // num_heads
+        self.scale = self.head_dim ** -0.5
+
+        self.qkv = nn.Linear(embed_dim, embed_dim * 3, bias=False)
+        self.proj = nn.Linear(embed_dim, embed_dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        B, N, C = x.shape
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn.softmax(dim=-1)
+        attn = self.dropout(attn)
+
+        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = self.proj(x)
+        x = self.dropout(x)
+        return x
 
 class TransformerEncoderLayer(nn.Module):
     """Defines a single layer of the transformer encoder."""
@@ -43,15 +92,15 @@ class TransformerEncoderLayer(nn.Module):
         self.fc1 = nn.Linear(c1, cm)
         self.fc2 = nn.Linear(cm, c1)
 
-        self.norm1 = nn.LayerNorm(c1)
-        self.norm2 = nn.LayerNorm(c1)
+        self.norm1 = nn.LayerNorm2d(c1)
+        self.norm2 = nn.LayerNorm2d(c1)
         self.dropout = nn.Dropout(dropout)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
 
         self.act = act
         self.normalize_before = normalize_before
-
+        self.drop_path = DropPath(drop_path_rate) if drop_path_rate > 0. else nn.Identity()
     @staticmethod
     def with_pos_embed(tensor, pos=None):
         """Add position embeddings to the tensor if provided."""
@@ -61,10 +110,15 @@ class TransformerEncoderLayer(nn.Module):
         """Performs forward pass with post-normalization."""
         q = k = self.with_pos_embed(src, pos)
         src2 = self.ma(q, k, value=src, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)[0]
-        src = src + self.dropout1(src2)
+        #src = src + self.dropout1(src2) cũ
+        src = src + self.drop_path(self.dropout1(src2))
         src = self.norm1(src)
+        #src2 = self.fc2(self.dropout(self.act(self.fc1(src)))) cũ
+        #src = src + self.dropout2(src2) cũ
+        src2 = self.global_attn(src)
+        src = src + self.drop_path(self.dropout2(src2))
         src2 = self.fc2(self.dropout(self.act(self.fc1(src))))
-        src = src + self.dropout2(src2)
+        src = src + self.drop_path(self.dropout2(src2))
         return self.norm2(src)
 
     def forward_pre(self, src, src_mask=None, src_key_padding_mask=None, pos=None):
@@ -72,10 +126,16 @@ class TransformerEncoderLayer(nn.Module):
         src2 = self.norm1(src)
         q = k = self.with_pos_embed(src2, pos)
         src2 = self.ma(q, k, value=src2, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)[0]
-        src = src + self.dropout1(src2)
+        #src = src + self.dropout1(src2)
+        #src2 = self.norm2(src)
+        #src2 = self.fc2(self.dropout(self.act(self.fc1(src2))))
+        #return src + self.dropout2(src2)
+        src = src + self.drop_path(self.dropout1(src2))
         src2 = self.norm2(src)
+        src2 = self.global_attn(src2)
+        src = src + self.drop_path(self.dropout2(src2))
         src2 = self.fc2(self.dropout(self.act(self.fc1(src2))))
-        return src + self.dropout2(src2)
+        return src + self.drop_path(self.dropout2(src2))
 
     def forward(self, src, src_mask=None, src_key_padding_mask=None, pos=None):
         """Forward propagates the input through the encoder module."""
@@ -87,9 +147,9 @@ class TransformerEncoderLayer(nn.Module):
 class AIFI(TransformerEncoderLayer):
     """Defines the AIFI transformer layer."""
 
-    def __init__(self, c1, cm=2048, num_heads=8, dropout=0, act=nn.GELU(), normalize_before=False):
+    def __init__(self, c1, cm=2048, num_heads=8, dropout=0, act=nn.GELU(), normalize_before=False, drop_path_rate=0.1):
         """Initialize the AIFI instance with specified parameters."""
-        super().__init__(c1, cm, num_heads, dropout, act, normalize_before)
+        super().__init__(c1, cm, num_heads, dropout, act, normalize_before, drop_path_rate) #bo sung moi
 
     def forward(self, x):
         """Forward pass for the AIFI transformer layer."""
@@ -119,33 +179,39 @@ class AIFI(TransformerEncoderLayer):
 class TransformerLayer(nn.Module):
     """Transformer layer https://arxiv.org/abs/2010.11929 (LayerNorm layers removed for better performance)."""
 
-    def __init__(self, c, num_heads):
+    def __init__(self, c, num_heads, drop_path_rate=0.1):
         """Initializes a self-attention mechanism using linear transformations and multi-head attention."""
         super().__init__()
         self.q = nn.Linear(c, c, bias=False)
         self.k = nn.Linear(c, c, bias=False)
         self.v = nn.Linear(c, c, bias=False)
         self.ma = nn.MultiheadAttention(embed_dim=c, num_heads=num_heads)
+        #self.fc1 = nn.Linear(c, c, bias=False)
+        #self.fc2 = nn.Linear(c, c, bias=False)
+        self.global_attn = GlobalContextAttention(c, num_heads)
         self.fc1 = nn.Linear(c, c, bias=False)
         self.fc2 = nn.Linear(c, c, bias=False)
+        self.drop_path = DropPath(drop_path_rate) if drop_path_rate > 0. else nn.Identity()
+
 
     def forward(self, x):
         """Apply a transformer block to the input x and return the output."""
         x = self.ma(self.q(x), self.k(x), self.v(x))[0] + x
+        x = x + self.drop_path(self.global_attn(x))
         return self.fc2(self.fc1(x)) + x
 
 
 class TransformerBlock(nn.Module):
     """Vision Transformer https://arxiv.org/abs/2010.11929."""
 
-    def __init__(self, c1, c2, num_heads, num_layers):
+    def __init__(self, c1, c2, num_heads, num_layers, drop_path_rate=0.1):
         """Initialize a Transformer module with position embedding and specified number of heads and layers."""
         super().__init__()
         self.conv = None
         if c1 != c2:
             self.conv = Conv(c1, c2)
         self.linear = nn.Linear(c2, c2)  # learnable position embedding
-        self.tr = nn.Sequential(*(TransformerLayer(c2, num_heads) for _ in range(num_layers)))
+        self.tr = nn.Sequential(*(TransformerLayer(c2, num_heads,drop_path_rate) for _ in range(num_layers)))
         self.c2 = c2
 
     def forward(self, x):
