@@ -62,4 +62,30 @@ class SegmentationTrainer(yolo.detect.DetectionTrainer):
         plot_results(file=self.csv, segment=True, on_plot=self.on_plot)  # save results.png
 #Moi cho them
 if __name__ == "__main__":
+    import argparse
+    from ultralytics.cfg import DEFAULT_CFG
+
+    def main():
+        parser = argparse.ArgumentParser(description="Train a YOLO segmentation model.")
+        parser.add_argument("--data", type=str, required=True, help="Path to the dataset YAML file.")
+        parser.add_argument("--cfg", type=str, required=True, help="Path to the model YAML file.")
+        parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs.")
+        parser.add_argument("--batch", type=int, default=16, help="Batch size.")
+        parser.add_argument("--imgsz", type=int, default=640, help="Image size.")
+        args = parser.parse_args()
+
+        # Create a SegmentationTrainer instance with the parsed arguments
+        overrides = dict(
+            model=args.cfg,
+            data=args.data,
+            epochs=args.epochs,
+            batch=args.batch,
+            imgsz=args.imgsz,
+        )
+        trainer = SegmentationTrainer(DEFAULT_CFG, overrides=overrides)
+        
+        # Start training
+        trainer.train()
+
+    # Call the main function
     main()
