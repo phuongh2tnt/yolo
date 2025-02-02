@@ -60,3 +60,6 @@ class SegmentationTrainer(yolo.detect.DetectionTrainer):
     def plot_metrics(self):
         """Plots training/val metrics."""
         plot_results(file=self.csv, segment=True, on_plot=self.on_plot)  # save results.png
+#Moi cho them
+if __name__ == "__main__":
+    main()
