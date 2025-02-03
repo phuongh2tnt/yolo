@@ -2,5 +2,5 @@ colors:
 - [59, 187, 230]
 names: [tom]
 nc: 1
-train: /content/yolo/datasets/ultralytics/cfg/datasets/tomseg/images/train
-val: /content/yolo/datasets/ultralytics/cfg/datasets/tomseg/images/val
+train: /content/yolo/ultralytics/cfg/datasets/tomseg/images/train
+val: /content/yolo/ultralytics/cfg/datasets/tomseg/images/val
