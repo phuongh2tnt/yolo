@@ -1,0 +1,6 @@
+colors:
+- [59, 187, 230]
+names: [tom]
+nc: 1
+train: /content/drive/MyDrive/AI/optimlabel/dataset/boxmin/images/train
+val:  /content/drive/MyDrive/AI/optimlabel/dataset/boxmin/images/val
