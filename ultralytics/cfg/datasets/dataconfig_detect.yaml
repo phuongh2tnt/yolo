@@ -1,0 +1,7 @@
+colors:
+- [59, 187, 230]
+names: [tom]
+nc: 1
+train: E:/thanh/ntu_group/phuong/optim/datasetBBbody/images/train
+val: E:/thanh/ntu_group/phuong/optim/datasetBBbody/images/val
+test: E:/thanh/ntu_group/phuong/optim/datasetBBbody/images/test
